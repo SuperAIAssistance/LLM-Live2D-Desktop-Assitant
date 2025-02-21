@@ -5,6 +5,7 @@ import json
 from enum import Enum
 import numpy as np
 from loguru import logger
+from bson.objectid import ObjectId
 
 from .service_context import ServiceContext
 from .chat_group import (
@@ -27,6 +28,7 @@ from .conversations.conversation_handler import (
     handle_group_interrupt,
     handle_individual_interrupt,
 )
+from .saas.saas_handler import saas_handler
 
 
 class MessageType(Enum):
@@ -93,6 +95,7 @@ class WebSocketHandler:
             "switch-config": self._handle_config_switch,
             "fetch-backgrounds": self._handle_fetch_backgrounds,
             "audio-play-start": self._handle_audio_play_start,
+            "load-character": self._handle_load_character,
         }
 
     async def handle_new_connection(
@@ -395,6 +398,7 @@ class WebSocketHandler:
             )
             if msg["role"] != "system"
         ]
+        logger.error(f"Messages: {messages}")
         await websocket.send_text(
             json.dumps({"type": "history-data", "messages": messages})
         )
@@ -551,3 +555,20 @@ class WebSocketHandler:
     ) -> None:
         """Handle group info request"""
         await self.send_group_update(websocket, client_uid)
+
+    async def _handle_load_character(self, websocket: WebSocket, client_uid: str, data: dict):
+        """Handle loading character from MongoDB and creating/updating YAML config"""
+        character_id = data.get("character_id")
+        if not character_id:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": "No character ID provided"
+            }))
+            return
+        
+        await saas_handler.handle_character_load(
+            websocket=websocket,
+            client_uid=client_uid,
+            character_id=character_id,
+            client_context=self.client_contexts[client_uid]
+        )

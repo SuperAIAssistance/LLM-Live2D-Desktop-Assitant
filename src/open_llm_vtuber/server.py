@@ -9,6 +9,7 @@ from starlette.responses import Response
 from .routes import create_routes
 from .service_context import ServiceContext
 from .config_manager.utils import Config
+from .db.mongo_client import mongo_client
 
 
 class CustomStaticFiles(StaticFiles):
@@ -88,6 +89,16 @@ class WebSocketServer:
             CustomStaticFiles(directory="frontend", html=True),
             name="frontend",
         )
+
+        # Initialize MongoDB connection
+        @self.app.on_event("startup")
+        async def startup_db_client():
+            await mongo_client.connect()
+            
+        @self.app.on_event("shutdown")
+        async def shutdown_db_client():
+            if mongo_client.client:
+                mongo_client.client.close()
 
     def run(self):
         pass
